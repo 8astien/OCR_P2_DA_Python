@@ -16,6 +16,8 @@ page = requests.get(full_page_url)
 soup = BeautifulSoup(page.content, "html.parser")
 
 # DATA LISTS INIT
+categories_name = []
+categories_url = []
 books_url = []
 upcs = []
 titles = []
@@ -29,7 +31,21 @@ image_urls = []
 book_infos = []
 
 
-# EXTRACT ALL BOOKS URLS FROM A PAGE
+def get_categories():
+    page = requests.get(base_url)
+    soup = BeautifulSoup(page.content, 'html.parser')
+    side_categories = soup.find("div", class_="side_categories")
+    links = side_categories.find_all("a")
+    for i, link in enumerate(links):
+        if i == 0:
+            continue
+        href = link.get("href")
+        url = base_url + href
+        categories_url.append(url)
+        text = link.string.strip()
+        categories_name.append(text)
+
+
 def extract_books_url(page_url):
     print('Start Extract Books URL')
     page = requests.get(page_url)
@@ -42,13 +58,14 @@ def extract_books_url(page_url):
         books_url.append(full_book_url)
 
 
-def crawl_books_in_category():
+def crawl_books_in_category(cat):
     print('Start Crawl All Books in Category')
-    extract_books_url(full_page_url)
+    extract_books_url(cat)
     next_page = soup.find("li", class_="next")
     if next_page:
-        page = current_page + 1
-        new_url = base_url + f"/catalogue/category/books/{category}/page-{page}.html"
+        # TODO: gérer toutes les pages d'une catégorie
+        new_url_raw = cat.removesuffix('index.html')
+        new_url = new_url_raw + f'page-2.html'
         extract_books_url(new_url)
 
 
@@ -62,7 +79,11 @@ def extract_book_info(url):
     price_including_tax = soup.find("th", string="Price (incl. tax)").find_next_sibling().text
     price_excluding_tax = soup.find("th", string="Price (excl. tax)").find_next_sibling().text
     number_available = soup.find("th", string="Availability").find_next_sibling().text
-    description = soup.find("div", id="product_description").find_next_sibling().text
+    description_raw = soup.find("div", id="product_description")
+    if description_raw:
+        description = description_raw.find_next_sibling().text
+    else:
+        description = 'NO DESCRIPTION AVAILABLE !'
     breadcrumb = soup.find("ul", class_="breadcrumb").find_all("li")
     category = breadcrumb[2].text
     review_rating = soup.find("p", class_="star-rating").attrs["class"][1]
@@ -92,9 +113,9 @@ def extract_books_info(books_url):
         book_infos.append(book_info)
 
 
-def write_file(book_infos, cat):
+def write_file(book_infos):
     # Enregistrer les données dans un fichier CSV
-    with open(f'data/{cat}.csv', mode='w') as csv_file:
+    with open(f'data/data.csv', mode='w') as csv_file:
         fieldnames = ['url',
                       'upc',
                       'title',
@@ -121,13 +142,15 @@ def write_file(book_infos, cat):
                              'image_url': book['image_url']})
 
 
-def main(books_url, book_infos):
-    crawl_books_in_category()
+def main(books_url, book_infos, categories):
+    get_categories()
+    for cat in categories:
+        crawl_books_in_category(cat)
     extract_books_info(books_url)
-    write_file(book_infos, category)
+    write_file(book_infos)
 
 
-main(books_url, book_infos)
+main(books_url, book_infos, categories_url)
 
 
 
