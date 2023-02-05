@@ -3,11 +3,11 @@ import csv
 from bs4 import BeautifulSoup
 
 # URLs
-base_url = "http://books.toscrape.com/"
+BASE_URL = "http://books.toscrape.com/"
 category = 'mystery_3'
 current_page = 1
 url = f"/catalogue/category/books/{category}/page-{current_page}.html"
-full_page_url = base_url + url
+full_page_url = BASE_URL + url
 
 #  GET page content
 page = requests.get(full_page_url)
@@ -32,22 +32,33 @@ book_infos = []
 
 
 def get_categories():
-    page = requests.get(base_url)
+    page = requests.get(BASE_URL)
     soup = BeautifulSoup(page.content, 'html.parser')
     side_categories = soup.find("div", class_="side_categories")
     links = side_categories.find_all("a")
     for i, link in enumerate(links):
+        # AVOID FIRST ELEMENT (BOOKS, GENERAL, NOT NEEDED)
         if i == 0:
             continue
         href = link.get("href")
-        url = base_url + href
+        url = BASE_URL + href
         categories_url.append(url)
         text = link.string.strip()
         categories_name.append(text)
 
 
+def crawl_books_in_category(cat, page=1):
+    print('Start Crawl All Books in Category')
+    next_page = extract_books_url(cat)
+    if next_page:
+        new_url_raw = cat.rstrip('index.html').rstrip(f'page-{page}.html')
+        new_url = new_url_raw + f'page-{page + 1}.html'
+        crawl_books_in_category(new_url, page + 1)
+
+
 def extract_books_url(page_url):
     print('Start Extract Books URL')
+    print(page_url)
     page = requests.get(page_url)
     soup = BeautifulSoup(page.content, "html.parser")
     books_list = soup.find_all("div", class_='image_container')
@@ -56,17 +67,10 @@ def extract_books_url(page_url):
         url_clean = url_raw.removeprefix('../../../')
         full_book_url = 'http://books.toscrape.com/catalogue/' + url_clean
         books_url.append(full_book_url)
-
-
-def crawl_books_in_category(cat):
-    print('Start Crawl All Books in Category')
-    extract_books_url(cat)
     next_page = soup.find("li", class_="next")
     if next_page:
-        # TODO: gérer toutes les pages d'une catégorie
-        new_url_raw = cat.removesuffix('index.html')
-        new_url = new_url_raw + f'page-2.html'
-        extract_books_url(new_url)
+        return True
+    return False
 
 
 def extract_book_info(url):
@@ -89,7 +93,7 @@ def extract_book_info(url):
     review_rating = soup.find("p", class_="star-rating").attrs["class"][1]
     temp_image_url = soup.select_one('#product_gallery img')['src']
     image_url_clean = temp_image_url.removeprefix('../../')
-    image_url = base_url + image_url_clean
+    image_url = BASE_URL + image_url_clean
 
     book_info = {
         "url": url,
@@ -115,6 +119,7 @@ def extract_books_info(books_url):
 
 def write_file(book_infos):
     # Enregistrer les données dans un fichier CSV
+    # TODO: Créer un fichier par catégorie
     with open(f'data/data.csv', mode='w') as csv_file:
         fieldnames = ['url',
                       'upc',
