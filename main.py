@@ -3,9 +3,37 @@ import csv
 from bs4 import BeautifulSoup
 import os
 import shutil
-import re
 
 BASE_URL = "http://books.toscrape.com/"
+
+
+def get_categories():
+    categories = {}
+    page = requests.get(BASE_URL)
+    soup = BeautifulSoup(page.content, 'html.parser')
+    side_categories = soup.find("ul", class_="nav nav-list")
+    list = side_categories.find_next("ul")
+    links = list.find_all("a")
+    for link in links:
+        href = link.get("href")
+        url = BASE_URL + href
+        text = link.string.strip()
+        categories[text] = url
+    return categories
+
+
+def crawl_category_pages(url, page=1):
+    # List to store all the URLs
+    urls = []
+    response = requests.get(url)
+    soup = BeautifulSoup(response.content, 'html.parser')
+    next_page = soup.find("li", class_="next")
+    urls.append(url)
+    if next_page:
+        url_raw = url.rstrip('index.html').rstrip(f'page-{page}.html')
+        new_url = url_raw + f'page-{page + 1}.html'
+        urls.extend(crawl_category_pages(new_url, page + 1))
+    return urls
 
 
 def get_one_book(url):
@@ -44,6 +72,31 @@ def get_one_book(url):
         return book_info
 
 
+def get_books_url_from_single_page(category_url):
+    books_url = []
+    page = requests.get(category_url)
+    soup = BeautifulSoup(page.content, "html.parser")
+    books_list = soup.find_all("div", class_='image_container')
+    for book in books_list:
+        url_raw = book.find('a')['href']
+        url_clean = url_raw.removeprefix('../../../')
+        full_book_url = 'http://books.toscrape.com/catalogue/' + url_clean
+        books_url.append(full_book_url)
+    return books_url
+
+
+def extract_all_books_from_category(category_url):
+    books_infos = []
+    category_pages = crawl_category_pages(category_url)
+    for page in category_pages:
+        books_url = get_books_url_from_single_page(page)
+        for book in books_url:
+            book_details = get_one_book(book)
+            print(book_details)
+            books_infos.append(book_details)
+    return books_infos
+
+
 def write_file(books_list, category_name):
     # Enregistrer les données dans un fichier CSV
     directory = category_name
@@ -76,8 +129,7 @@ def write_file(books_list, category_name):
                              'review_rating': book['review_rating'],
                              'image_url': book['image_url']})
             book_url = book['image_url']
-            file_name_raw = re.sub('\W+','', book['title'])
-            file_name = file_name_raw + '.jpg'
+            file_name = book['upc'] + '.jpg'
             download_image(book_url,
                            category_name,
                            file_name)
@@ -93,67 +145,12 @@ def download_image(img_url, category_name, file_name):
         print('Image Couldn\'t be retrieved')
 
 
-def get_books_url_from_single_page(category_url):
-    books_url = []
-    page = requests.get(category_url)
-    soup = BeautifulSoup(page.content, "html.parser")
-    books_list = soup.find_all("div", class_='image_container')
-    for book in books_list:
-        url_raw = book.find('a')['href']
-        url_clean = url_raw.removeprefix('../../../')
-        full_book_url = 'http://books.toscrape.com/catalogue/' + url_clean
-        books_url.append(full_book_url)
-    return books_url
-
-
-def crawl_category_pages(url, page=1):
-    # List to store all the URLs
-    urls = []
-    response = requests.get(url)
-    soup = BeautifulSoup(response.content, 'html.parser')
-    next_page = soup.find("li", class_="next")
-    urls.append(url)
-    if next_page:
-        url_raw = url.rstrip('index.html').rstrip(f'page-{page}.html')
-        new_url = url_raw + f'page-{page + 1}.html'
-        urls.extend(crawl_category_pages(new_url, page + 1))
-    return urls
-
-
-def extract_all_books_from_category(category_url):
-    books_infos = []
-    category_pages = crawl_category_pages(category_url)
-    for page in category_pages:
-        books_url = get_books_url_from_single_page(page)
-        for book in books_url:
-            book_details = get_one_book(book)
-            print(book_details)
-            books_infos.append(book_details)
-    return books_infos
-
-
-def get_categories():
-    categories = {}
-    page = requests.get(BASE_URL)
-    soup = BeautifulSoup(page.content, 'html.parser')
-    side_categories = soup.find("ul", class_="nav nav-list")
-    list = side_categories.find_next("ul")
-    links = list.find_all("a")
-    for link in links:
-        href = link.get("href")
-        url = BASE_URL + href
-        text = link.string.strip()
-        categories[text] = url
-    return categories
-
-
 def main():
     categories = get_categories()
     for cat in categories:
-        cat_name = cat
         url = categories.get(cat)
         book_infos = extract_all_books_from_category(url)
-        write_file(book_infos, cat_name)
+        write_file(book_infos, cat)
 
 
 main()
