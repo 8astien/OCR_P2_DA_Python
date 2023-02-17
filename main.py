@@ -37,39 +37,42 @@ def crawl_category_pages(url, page=1):
 
 
 def get_one_book(url):
-        page = requests.get(url)
-        soup = BeautifulSoup(page.content, "html.parser")
-        # DATA EXTRACTION
-        upc = soup.find("th", string="UPC").find_next_sibling().text
-        title = soup.find("h1").text
-        price_including_tax = soup.find("th", string="Price (incl. tax)").find_next_sibling().text
-        price_excluding_tax = soup.find("th", string="Price (excl. tax)").find_next_sibling().text
-        number_available = soup.find("th", string="Availability").find_next_sibling().text
-        description_raw = soup.find("div", id="product_description")
-        if description_raw:
-            description = description_raw.find_next_sibling().text
-        else:
-            description = 'NO DESCRIPTION AVAILABLE !'
-        breadcrumb = soup.find("ul", class_="breadcrumb").find_all("li")
-        category = breadcrumb[2].text
-        review_rating = soup.find("p", class_="star-rating").attrs["class"][1]
-        temp_image_url = soup.select_one('#product_gallery img')['src']
-        image_url_clean = temp_image_url.removeprefix('../../')
-        image_url = BASE_URL + image_url_clean
+    page = requests.get(url)
+    soup = BeautifulSoup(page.content, "html.parser")
+    # DATA EXTRACTION
+    upc = soup.find("th", string="UPC").find_next_sibling().text
+    title = soup.find("h1").text
+    price_including_tax = soup.find(
+        "th", string="Price (incl. tax)").find_next_sibling().text
+    price_excluding_tax = soup.find(
+        "th", string="Price (excl. tax)").find_next_sibling().text
+    number_available = soup.find(
+        "th", string="Availability").find_next_sibling().text
+    description_raw = soup.find("div", id="product_description")
+    if description_raw:
+        description = description_raw.find_next_sibling().text
+    else:
+        description = 'NO DESCRIPTION AVAILABLE !'
+    breadcrumb = soup.find("ul", class_="breadcrumb").find_all("li")
+    category = breadcrumb[2].text
+    review_rating = soup.find("p", class_="star-rating").attrs["class"][1]
+    temp_image_url = soup.select_one('#product_gallery img')['src']
+    image_url_clean = temp_image_url.removeprefix('../../')
+    image_url = BASE_URL + image_url_clean
 
-        book_info = {
-            "url": url,
-            "upc": upc,
-            "title": title,
-            "price_including_tax": price_including_tax,
-            "price_excluding_tax": price_excluding_tax,
-            "number_available": number_available,
-            "description": description,
-            "category": category,
-            "review_rating": review_rating,
-            "image_url": image_url
-        }
-        return book_info
+    book_info = {
+        "url": url,
+        "upc": upc,
+        "title": title,
+        "price_including_tax": price_including_tax,
+        "price_excluding_tax": price_excluding_tax,
+        "number_available": number_available,
+        "description": description,
+        "category": category,
+        "review_rating": review_rating,
+        "image_url": image_url
+    }
+    return book_info
 
 
 def get_books_url_from_single_page(category_url):
@@ -103,7 +106,9 @@ def write_file(books_list, category_name):
     os.makedirs(os.path.dirname('data/'), exist_ok=True)
     path = os.path.join('data/', directory)
     os.makedirs(path)
-    with open(f'data/{category_name}/0_{category_name}.csv', mode='w') as csv_file:
+    with open(
+            f'data/{category_name}/0_{category_name}.csv', mode='w'
+    ) as csv_file:
         fieldnames = ['url',
                       'upc',
                       'title',
@@ -118,16 +123,27 @@ def write_file(books_list, category_name):
 
         writer.writeheader()
         for book in books_list:
-            writer.writerow({'url': book['url'],
-                            'upc': book['upc'],
-                             'title': book['title'],
-                             'price_including_tax': book['price_including_tax'],
-                             'price_excluding_tax': book['price_excluding_tax'],
-                             'number_available': book['number_available'],
-                             'description': book['description'],
-                             'category': book['category'],
-                             'review_rating': book['review_rating'],
-                             'image_url': book['image_url']})
+            writer.writerow({
+                'url':
+                    book['url'],
+                'upc':
+                    book['upc'],
+                'title':
+                    book['title'],
+                'price_including_tax':
+                    book['price_including_tax'],
+                'price_excluding_tax':
+                    book['price_excluding_tax'],
+                'number_available':
+                    book['number_available'],
+                'description':
+                    book['description'],
+                'category':
+                    book['category'],
+                'review_rating':
+                    book['review_rating'],
+                'image_url':
+                    book['image_url']})
             book_url = book['image_url']
             file_name = book['upc'] + '.jpg'
             download_image(book_url,
@@ -140,14 +156,15 @@ def download_image(img_url, category_name, file_name):
     if res.status_code == 200:
         with open(f'data/{category_name}/{file_name}', 'wb') as f:
             shutil.copyfileobj(res.raw, f)
-        print('Image sucessfully Downloaded: ', file_name)
+        print('Image Downloaded: ', file_name)
     else:
-        print('Image Couldn\'t be retrieved')
+        print("Image Couldn't be downloaded")
 
 
 def main():
     categories = get_categories()
     for cat in categories:
+        print('Extracting data from category: ' + cat)
         url = categories.get(cat)
         book_infos = extract_all_books_from_category(url)
         write_file(book_infos, cat)
